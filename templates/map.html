@@ -68,12 +68,6 @@
     .btn-reset { background: #ff4d4d; color: white; margin-top: auto; }
     .btn-reset:hover { background: #cc0000; }
 
-    .btn-swimbim { 
-      background: #87ceeb; color: white; margin-top: 10px; width: 100%; 
-    }
-    .btn-swimbim:hover { background: #00bfff; }
-
-    /* New Skip Button Style */
     .btn-skip {
       background: #ddd;
       color: #555;
@@ -82,6 +76,29 @@
       font-size: 12px;
     }
     .btn-skip:hover { background: #bbb; color: #000; }
+
+    /* Swimbim Section */
+    .swimbim-container {
+      margin-top: 20px;
+      text-align: center;
+      background: white;
+      padding: 10px;
+      border-radius: 10px;
+    }
+    .swimbim-qr {
+      width: 100%;
+      max-width: 150px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .swimbim-qr:hover {
+      transform: scale(1.05);
+    }
+    .btn-swimbim { 
+      background: #87ceeb; color: white; margin-top: 5px; width: 100%; 
+    }
+    .btn-swimbim:hover { background: #00bfff; }
 
     /* Map Container */
     #map {
@@ -129,6 +146,15 @@
       z-index: 9999;
       font-size: 24px; color: #ff69b4;
     }
+
+    /* Music Player */
+    .music-player {
+        margin-top: 20px;
+        background: #fff;
+        padding: 10px;
+        border-radius: 8px;
+        text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -164,15 +190,20 @@
       </p>
     </div>
 
-    <button onclick="window.open('https://swimbim.com', '_blank')" class="btn-swimbim">Play Swimbim 🐟</button>
+    <div class="swimbim-container">
+        <a href="https://vincentdarrigo.github.io/swimbim/" target="_blank">
+            <img src="/media/swimbim_qr.png" alt="Swimbim QR" class="swimbim-qr" onerror="this.style.display='none'">
+        </a>
+        <button onclick="window.open('https://vincentdarrigo.github.io/swimbim/', '_blank')" class="btn-swimbim">Play Swimbim 🐟</button>
+    </div>
+
     <button onclick="resetGame()" class="btn-reset">Reset Progress</button>
     
-    <div style="margin-top: 20px;">
-        <audio id="bg-music" controls loop style="width: 100%;">
-            <source src="" type="audio/mpeg">
+    <div class="music-player">
+        <p style="font-size: 12px; margin: 0 0 5px 0; color: #888;">🎶 Billy Joel Mix</p>
+        <audio id="bg-music" controls style="width: 100%;">
             Your browser does not support the audio element.
         </audio>
-        <p style="font-size: 12px; text-align: center; color: #888;">🎶 Playing: Billy Joel Mix</p>
     </div>
   </div>
 
@@ -182,13 +213,50 @@
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
   <script>
+    // --- 🎵 MUSIC PLAYLIST SETUP ---
+    // IMPORTANT: Update these filenames to match exactly what is in your static/media folder!
+    const musicPlaylist = [
+        'vienna.mp3',
+        'we-didnt-start-the-fire.mp3',
+        'you-may-be-right.mp3',
+        'allentown.mp3',
+        'a-matter-of-trust.mp3',
+        'and-so-it-goes.mp3',
+        'angry-young-man.mp3',
+        'an-innocent-man.mp3',
+        'big-shot.mp3',
+        'captain-jack.mp3',
+        'dont-ask-me-why.mp3',
+        'everybody-loves-you-now.mp3',
+        'goodnight-saigon.mp3',
+        'i-go-to-extremes.mp3',
+        'italian-restaurant.mp3',
+        'its-still-rock-and-roll-to-me.mp3',
+        'just-the-way-you-are.mp3',
+        'keeping-the-faith.mp3',
+        'movin-out.mp3',
+        'my-life.mp3',
+        'new-york-state-of-mind.mp3',
+        'only-the-good-die-young.mp3',
+        'piano-man.mp3',
+        'pressure.mp3',
+        'shes-always-a-woman.mp3',
+        'shes-got-a-way.mp3',
+        'tell-her-about-it.mp3',
+        'the-entertainer.mp3',
+        'the-longest-time.mp3',
+        'the-river-of-dreams.mp3',
+        'uptown-girl.mp3'
+    ];
+    let currentTrackIndex = 0;
+
     // --- STATE MANAGEMENT ---
     let allClues = [];
     let currentClueIndex = 0;
     let map;
     let markersLayer = new L.LayerGroup();
     
-    // Minimum zoom to reveal pins (as per user request)
+    // Minimum zoom to reveal pins
     const MIN_ZOOM_TO_SHOW = 7;
 
     // --- INITIALIZATION ---
@@ -196,15 +264,7 @@
       initMap();
       loadClues();
       loadProgress();
-      
-      // Start music on first interaction (browser policy)
-      document.body.addEventListener('click', () => {
-        const audio = document.getElementById('bg-music');
-        // Simple playlist logic could go here, for now placeholder
-        if (audio.paused) {
-           // audio.play().catch(e => console.log("Audio play prevented until interaction"));
-        }
-      }, { once: true });
+      initAudio();
     });
 
     function initMap() {
@@ -212,7 +272,7 @@
       map = L.map('map').setView([15, 110], 4);
 
       L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         subdomains: 'abcd',
         maxZoom: 19
       }).addTo(map);
@@ -221,6 +281,37 @@
 
       // Zoom Listener to toggle pin visibility
       map.on('zoomend', updatePinVisibility);
+    }
+
+    function initAudio() {
+        const audio = document.getElementById('bg-music');
+        
+        // Function to load track
+        function loadTrack(index) {
+            if (musicPlaylist.length === 0) return;
+            // Ensure index wraps around
+            if (index >= musicPlaylist.length) currentTrackIndex = 0;
+            
+            audio.src = `/media/${musicPlaylist[currentTrackIndex]}`;
+            audio.load();
+        }
+
+        // Load first track
+        loadTrack(currentTrackIndex);
+
+        // When ended, play next
+        audio.addEventListener('ended', () => {
+            currentTrackIndex++;
+            loadTrack(currentTrackIndex);
+            audio.play();
+        });
+
+        // Attempt autoplay (might be blocked by browser until interaction)
+        document.body.addEventListener('click', () => {
+            if (audio.paused) {
+                audio.play().catch(e => console.log("User interaction required for audio"));
+            }
+        }, { once: true });
     }
 
     // --- DATA LOADING ---
@@ -256,31 +347,18 @@
       }
     }
 
-    // --- ROBUST COORDINATE PARSER (THE FIX) ---
+    // --- ROBUST COORDINATE PARSER ---
     function getCoords(address) {
       if (!address) return null;
-      
-      // 1. Remove "goblin" chars and text, keep numbers, minus, dot, comma
-      // Replace non-coord chars with space
       let clean = address.replace(/[^0-9.\-,]/g, ' '); 
-      
-      // 2. Try splitting by comma
       let parts = clean.split(',');
-
-      // 3. If comma split failed (length < 2), try splitting by space
       if (parts.length < 2) {
         parts = clean.split(' ').filter(p => p.trim() !== '');
       }
-
-      // 4. Parse
       if (parts.length >= 2) {
         const lat = parseFloat(parts[0]);
         const lng = parseFloat(parts[1]);
-        
-        // 5. Validate numbers
-        if (!isNaN(lat) && !isNaN(lng)) {
-          return [lat, lng];
-        }
+        if (!isNaN(lat) && !isNaN(lng)) return [lat, lng];
       }
       return null;
     }
@@ -288,7 +366,6 @@
     // --- RENDERING ---
     function renderSidebar() {
       if (currentClueIndex >= allClues.length) {
-        // Game Over / Victory State
         document.getElementById('clue-title').innerText = "🎉 COMPLETED!";
         document.getElementById('clue-text').innerHTML = "You've found all the memories! <br>Check the final location for your surprise!";
         document.querySelector('.hint-section').style.display = 'none';
@@ -300,7 +377,7 @@
       document.getElementById('clue-title').innerText = `🧩 Clue #${currentClueIndex + 1}`;
       document.getElementById('clue-text').innerText = clue.clue_text;
       document.getElementById('hint-text').innerText = clue.hint_text;
-      document.getElementById('hint-text').style.display = 'none'; // reset hint
+      document.getElementById('hint-text').style.display = 'none';
       
       updateProgressBar();
     }
@@ -311,86 +388,91 @@
       document.getElementById('progress-text').innerText = `${currentClueIndex} / ${allClues.length}`;
     }
 
-    // Hint Button Logic with "Safety Net" Zoom
     document.getElementById('hint-btn').addEventListener('click', () => {
       const hintText = document.getElementById('hint-text');
       hintText.style.display = hintText.style.display === 'none' ? 'block' : 'none';
-      
-      // NEW: Fly to area if hint is clicked
       if (currentClueIndex < allClues.length) {
          const clue = allClues[currentClueIndex];
          const coords = getCoords(clue.address);
-         if (coords) {
-             // Zoom 10 is close enough to see land, but not give away exact pin immediately
-             map.flyTo(coords, 10); 
-         }
+         if (coords) map.flyTo(coords, 10); 
       }
     });
 
-    // NEW: Skip Logic
     window.skipClue = function() {
         if (!confirm("Stuck? Want to skip this memory and move to the next?")) return;
-        
-        // Optionally alert the answer so she knows what she missed
         const clue = allClues[currentClueIndex];
         alert(`Skipped! The answer was: ${clue.point_of_interest}`);
-        
         currentClueIndex++;
         saveProgress();
         renderSidebar();
-        renderMap(); // Re-render to show next set of pins
+        renderMap(); 
     };
 
+    // --- MAP LOGIC (ALL PINS VISIBLE) ---
     function renderMap() {
       markersLayer.clearLayers();
       
-      // Only render pins for the CURRENT clue (to avoid confusion)
-      // Or render all? The original design seemed to render specific pins.
-      // Let's render pins for the current clue only, as per "Scavenger Hunt" logic.
-      
-      if (currentClueIndex >= allClues.length) {
-          // Show Final Victory Pin if needed, or maybe all pins?
-          // For now, let's stop rendering pins if game is done.
-          return;
-      }
+      // Loop through ALL clues to populate the map
+      allClues.forEach((clue, index) => {
+          const isFuture = index > currentClueIndex;
+          const isPast = index < currentClueIndex;
+          const isCurrent = index === currentClueIndex;
 
-      const clue = allClues[currentClueIndex];
-      
-      // 1. Add REAL Answer Pin
-      const realCoords = getCoords(clue.address);
-      if (realCoords) {
-        addPin(realCoords, true, clue);
-      } else {
-        console.error("Bad coords for clue:", clue.point_of_interest);
-      }
+          // 1. Plot Real Location
+          const realCoords = getCoords(clue.address);
+          if (realCoords) {
+              if (isPast) {
+                  // Solved Memory (Heart)
+                  addPin(realCoords, 'solved', clue, index);
+              } else {
+                  // Current OR Future (Mystery)
+                  // Future pins act as "dummies" effectively until it is their turn
+                  addPin(realCoords, isCurrent ? 'current' : 'future', clue, index);
+              }
+          }
 
-      // 2. Add DUMMY Answer Pin (if exists)
-      if (clue.dummy_address) {
-        const dummyCoords = getCoords(clue.dummy_address);
-        if (dummyCoords) {
-          addPin(dummyCoords, false, clue);
-        }
-      }
+          // 2. Plot Dummy Location (Always Mystery)
+          if (clue.dummy_address) {
+              const dummyCoords = getCoords(clue.dummy_address);
+              if (dummyCoords) {
+                  addPin(dummyCoords, 'dummy', clue, index);
+              }
+          }
+      });
 
       updatePinVisibility();
     }
 
-    function addPin(coords, isCorrect, clueData) {
-      // Create a "Mystery" Icon
-      const mysteryIcon = L.divIcon({
-        className: 'custom-pin',
-        html: '<div style="font-size: 24px;">❓</div>',
+    function addPin(coords, type, clueData, index) {
+      let iconHtml = '❓'; // Default Mystery
+      let className = 'custom-pin';
+      
+      if (type === 'solved') {
+          iconHtml = '💖';
+      }
+
+      const icon = L.divIcon({
+        className: className,
+        html: `<div style="font-size: 24px; filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.3));">${iconHtml}</div>`,
         iconSize: [30, 30],
         iconAnchor: [15, 15]
       });
 
-      const marker = L.marker(coords, { icon: mysteryIcon });
+      const marker = L.marker(coords, { icon: icon });
 
       marker.on('click', () => {
-        if (isCorrect) {
-          handleCorrectAnswer(marker, clueData);
+        if (type === 'solved') {
+            // Re-show memory
+            showMemoryPopup(marker, clueData, false);
+        } else if (type === 'current') {
+            // Correct Answer!
+            handleCorrectAnswer(marker, clueData);
+        } else if (type === 'future') {
+            // Future real answer (act as dummy/locked)
+            showDummyPopup(marker, "This location feels special... but not for this clue! Keep searching! 🔒");
         } else {
-          handleWrongAnswer(marker, clueData);
+            // Dummy pin
+            showDummyPopup(marker, clueData.dummy_popup_text || "Nope! Not here bumbum! Try again! 😜");
         }
       });
 
@@ -399,7 +481,6 @@
 
     function updatePinVisibility() {
       const currentZoom = map.getZoom();
-      // If zoomed out too far, hide markers to keep the map clean/challenging
       if (currentZoom < MIN_ZOOM_TO_SHOW) {
         document.querySelectorAll('.leaflet-marker-icon').forEach(el => el.style.opacity = '0');
       } else {
@@ -407,20 +488,16 @@
       }
     }
 
-    // --- GAMEPLAY LOGIC ---
+    // --- POPUP LOGIC ---
 
     function handleCorrectAnswer(marker, clue) {
-      // Victory Confetti
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      showMemoryPopup(marker, clue, true);
+    }
 
-      // Prepare Popup Content
+    function showMemoryPopup(marker, clue, isNewSolve) {
       let mediaHtml = '';
       if (clue.media_file) {
-        // Check if it's a video or image based on extension
         if (clue.media_file.endsWith('.mp4') || clue.media_file.endsWith('.mov')) {
             mediaHtml = `<video controls autoplay loop style="width:100%; border-radius:10px; margin-top:10px;">
                             <source src="/media/${clue.media_file}" type="video/mp4">
@@ -430,29 +507,33 @@
         }
       }
 
+      let btnHtml = '';
+      if (isNewSolve) {
+          btnHtml = `<button class="popup-btn" onclick="nextClue()">Next Memory ➡️</button>`;
+      } else {
+          btnHtml = `<p style="text-align:center; font-size:12px; color:#666;">(Memory Solved)</p>`;
+      }
+
       const content = `
         <div class="custom-popup">
           <h3>✅ Correct: ${clue.point_of_interest}</h3>
           <p>${clue.love_note}</p>
           ${mediaHtml}
-          <button class="popup-btn" onclick="nextClue()">Next Memory ➡️</button>
+          ${btnHtml}
         </div>
       `;
 
       marker.bindPopup(content, { maxWidth: 300 }).openPopup();
       
-      // Change icon to Heart or something resolved
-      marker.setIcon(L.divIcon({
-          html: '<div style="font-size: 24px;">💖</div>',
-          iconSize: [30, 30]
-      }));
+      if (isNewSolve) {
+          marker.setIcon(L.divIcon({
+              html: '<div style="font-size: 24px;">💖</div>',
+              iconSize: [30, 30]
+          }));
+      }
     }
 
-    function handleWrongAnswer(marker, clue) {
-      // 33% chance of Rick Roll or Funny Video if configured
-      // For simplicity, let's show the dummy text
-      const text = clue.dummy_popup_text || "Nope! Not here bumbum! Try again! 😜";
-      
+    function showDummyPopup(marker, text) {
       marker.bindPopup(`
         <div class="custom-popup">
           <h3>❌ Oops!</h3>
@@ -461,19 +542,13 @@
       `).openPopup();
     }
 
-    // Global function for popup button
     window.nextClue = function() {
       currentClueIndex++;
       saveProgress();
-      
-      // Close popup
       map.closePopup();
-      
-      // Re-render
       renderSidebar();
       renderMap();
-      
-      // Reset zoom slightly to encourage looking for next spot
+      // Zoom out to reset view for next hunt
       map.flyTo([15, 110], 4); 
     };
 
